@@ -19,6 +19,10 @@ dist/
 *.swp
 *.swo
 
+# C++ compiled artifacts
+algorithms/dsa-cli
+algorithms/dsa-cli.exe
+
 # OS
 .DS_Store
 Thumbs.db

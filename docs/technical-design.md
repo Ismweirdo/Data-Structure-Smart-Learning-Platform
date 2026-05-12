@@ -458,6 +458,6 @@ ORDER BY kp.difficulty
 | **F** | 前端：可视化引擎 | Canvas 2D, React | 排序算法 (5 nodes) |
 | **G** | 后端：推荐引擎 & 统计 | FastAPI, 推荐算法 | 查找算法 (4 nodes) |
 | **H** | 前端：练习UI & 仪表盘 | React, Monaco Editor | 基础概念+跨关联 (2+5) |
-| **I** | DevOps & 数据库 | Docker, PostgreSQL, Neo4j | KG 规范制定 + 汇总 |
+| **I** | DevOps & 可视化数据 API | Docker, PostgreSQL, Neo4j, FastAPI | KG 规范制定 + 汇总 |
 
 **注意**：本项目不设组长。项目管理通过全体遵守的分支策略、Commit 规范、定期会议机制实现。

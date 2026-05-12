@@ -90,6 +90,18 @@ docs/kg-modules/
 | 练习记录写入 | 每次提交写入 `exercise_records` 表 |
 | 掌握度更新 | 批改后同步更新 `knowledge_mastery` 表 |
 
+**代码题自动批改（C++ CLI 辅助）：**
+
+代码题（如"在位置 i 插入元素 x"）的批改可调用 `algorithm_runner` 获取 C++ 标准运行结果作为答案基准：
+
+```python
+from app.services.algorithm_runner import step_array_insert
+expected = step_array_insert(data, position, value)["final_state"]
+correct = (student_result == expected)
+```
+
+避免了手写每种操作预期结果的工作。
+
 **交付物：**
 ```
 backend/app/models/exercise.py
@@ -106,7 +118,7 @@ GET   /api/v1/exercises/{id}                    → ExerciseResponse
 POST  /api/v1/exercises/{id}/submit             → ExerciseSubmitResponse
 ```
 
-**依赖：** 成员 C 提供用户认证，成员 D 提供知识点数据
+**依赖：** 成员 C 提供用户认证，成员 D 提供知识点数据，`algorithm_runner`（C++ CLI 封装）
 
 ---
 
@@ -241,19 +253,27 @@ frontend/src/components/knowledge-graph/GraphFilter.tsx
 
 ### 成员 F — 前端：数据结构可视化引擎
 
+**核心变化：数据驱动渲染。** 动画算法逻辑由 C++ CLI 执行并输出逐步状态 JSON，Canvas 渲染器不再内嵌排序/查找/遍历的算法实现，改为消费 API 返回的 `steps[]` 逐帧播放。
+
 | 职责 | 说明 |
 |------|------|
 | Canvas 渲染框架 | `DataStructureRenderer` 基类 + 动画循环 |
 | 工具函数 | 缓动函数、圆角矩形、箭头绘制等 Canvas 工具 |
-| 顺序表渲染器 | 插入/删除操作动画 |
-| 链表渲染器 | 节点遍历/插入/删除动画 |
-| 栈渲染器 | push/pop 动画 |
-| 队列渲染器 | enqueue/dequeue 动画 |
-| 树渲染器 | 二叉树构建、BST 插入/查找、遍历过程 |
-| 图渲染器 | BFS/DFS 探索逐步动画 |
-| 排序渲染器 | 冒泡/快速/归并排序的比较交换动画 |
+| 顺序表渲染器 | 消费 `step_array_*()` 返回的 steps JSON，播放插入/删除动画 |
+| 链表渲染器 | 消费 `step_linked_list_*()` 的 steps，播放节点操作动画 |
+| 栈渲染器 | 消费 push/pop steps，播放压栈/弹栈动画 |
+| 队列渲染器 | 消费 enqueue/dequeue steps，播放入队/出队动画 |
+| 树渲染器 | 消费 `init_bst()` 的 `insert_steps` + `search_bst()` 的 search steps |
+| 图渲染器 | 消费 `traverse_graph_*()` 的 BFS/DFS steps |
+| 排序渲染器 | 消费 `sort_*()` 的 compare/swap steps，逐帧播放比较交换 |
 | 播放控件 | 播放/暂停/单步/重置 + 速度滑块 |
 | 可视化页面 | 数据结构选择器 + Canvas 画布 + 控件栏 |
+
+**数据流：**
+```
+用户操作 → POST /visualization/{type}/step → C++ CLI 执行 → steps[] JSON
+→ CanvasRenderer 逐帧播放 (phase, indices, values, swapped)
+```
 
 **交付物：**
 ```
@@ -267,7 +287,7 @@ frontend/src/components/visualization/renderers/
     TreeRenderer.ts, GraphRenderer.ts, SortRenderer.ts
 ```
 
-**依赖：** 成员 B 提供路由/布局/API
+**依赖：** 成员 B 提供路由/布局/API/类型，成员 I 提供可视化数据 API（C++ CLI 驱动）
 
 ---
 
@@ -332,10 +352,12 @@ frontend/src/components/exercise/ResultFeedback.tsx
 
 ---
 
-### 成员 I — DevOps / 数据库 / KG 规范
+### 成员 I — DevOps / 数据库 / KG 规范 / 可视化数据 API
 
-| 职责 | 说明 |
-|------|------|
+**职责一：基础设施与数据库（第 1~2 周）**
+
+| 工作项 | 说明 |
+|--------|------|
 | Docker 环境 | `docker-compose.yml`（Nginx + FastAPI + PostgreSQL + Neo4j + Redis） |
 | Nginx 配置 | 静态资源 + API 反向代理 |
 | PostgreSQL Schema | `database/init.sql` — 5 张表的完整建表语句 |
@@ -343,9 +365,26 @@ frontend/src/components/exercise/ResultFeedback.tsx
 | KG 规范制定 | 统一命名规则、属性填写标准（见 1.4 节） |
 | KG 汇总 | 将 A~H 的 KG 模块文档汇总为 `neo4j_init.cypher` |
 | .env 配置 | 环境变量模板 |
-| **（可选）** CI/CD | GitHub Actions 自动化测试 |
 
-> **注**：成员 I 不负责功能模块的**实现代码**（那是其他成员的工作），只负责基础设施和 KG 汇总。KG 规范制定在第 1 周完成，KG 汇总在第 3 周完成，其余时间可协助其他成员联调。
+**职责二：可视化数据 API + C++ CLI 集成（第 3~4 周）— 已完成框架搭建**
+
+> C++ 算法 CLI（`algorithms/cli.cpp` → `dsa-cli`）已实现全部数据结构的初始状态生成、操作步骤模拟、排序逐步追踪、图遍历。Python 侧通过 `algorithm_runner.py` → `visualization_service.py` → `visualization.py` 三层对接。
+
+| 工作项 | 状态 | 说明 |
+|--------|------|------|
+| C++ CLI 编译与 Docker 集成 | **新增** | 确保 `dsa-cli` 在 Docker 容器中可编译运行（`g++ -std=c++17`），或在构建阶段预编译 |
+| 可视化状态 API | 已实现 | `GET /visualization/{ds_type}` — 由 CLI `init` 命令驱动 |
+| 操作步骤 API | 已实现 | `POST /visualization/{ds_type}/step` — 由 CLI `step` 命令驱动 |
+| 数据结构状态生成 | 已实现 | CLI 已覆盖 array, linked-list, stack, queue, bst, graph 全部 6 种 |
+| 操作模拟逻辑 | 已实现 | 每种结构的 insert/delete/push/pop/enqueue/dequeue 均已支持 |
+| 排序算法追踪 | **新增** | CLI 支持 6 种排序（bubble/selection/insertion/quick/merge/heap）逐步 compare/swap 输出 |
+| 图遍历 | **新增** | CLI 支持 BFS/DFS 逐步 visit/discover 输出 |
+
+**I 的剩余工作：**
+1. 在 Docker 中集成 C++ 编译环境，确保 FastAPI 容器可调用 `dsa-cli`
+2. 完成 DevOps 交付物（docker-compose.yml、Nginx、PostgreSQL、Neo4j）
+3. KG 规范制定 → 审查 → 汇总为 `neo4j_init.cypher`
+4. 可视化 API 若需新增操作（如 BST 删除、AVL 旋转），扩写 CLI 对应函数
 
 **交付物：**
 ```
@@ -353,11 +392,24 @@ docker-compose.yml
 docker/Dockerfile.backend
 docker/nginx/nginx.conf, default.conf
 database/init.sql
-database/neo4j_init.cypher              # 汇总 A~H 的 KG 产出
+database/neo4j_init.cypher
 .env.example
+algorithms/cli.cpp                         # C++ CLI 主程序（已搭建）
+algorithms/CMakeLists.txt                  # CMake 构建配置
+backend/app/services/algorithm_runner.py   # Python ↔ C++ CLI 封装（已实现）
+backend/app/services/visualization_service.py # 可视化状态服务（已实现）
+backend/app/api/v1/visualization.py        # 可视化数据 API 路由（已实现）
 ```
 
-**依赖：** 无（全局基础设施提供者）
+**接口契约：**
+```
+GET  /api/v1/visualization/{ds_type}       → 初始状态 JSON（节点/边/位置等）
+POST /api/v1/visualization/{ds_type}/step  → 执行一步操作，返回新状态 JSON
+
+CLI 输出 JSON 格式即为与成员 F 前端 Canvas 的数据契约（见 algorithms/cli.cpp 中各函数的输出结构）
+```
+
+**依赖：** 无（基础设施层 + 独立 API 模块，与成员 F 前端可视化引擎通过 JSON 数据对接）
 
 ---
 
@@ -376,7 +428,11 @@ database/neo4j_init.cypher              # 汇总 A~H 的 KG 产出
 | 答题提交后更新掌握度 | A ↔ G | A 写入 mastery 表 → G 的 API 返回最新值 |
 | 仪表盘展示学习统计 | H ↔ G | `GET /progress/{uid}` + `/stats` |
 | 自适应推荐题目 | H ↔ G | `GET /exercises/adaptive/{uid}` |
-| 可视化页面获取初始数据 | F ↔ (API) | `GET /visualization/{ds_type}` |
+| 可视化页面获取初始数据 | F ↔ I | `GET /visualization/{ds_type}` → 初始状态 JSON |
+| 可视化操作步骤（逐帧动画） | F ↔ I | `POST /visualization/{ds_type}/step` → steps[] JSON |
+| 代码题自动批改（C++ 基准） | A ↔ CLI | `algorithm_runner.step_*()` → 预期结果 |
+
+> **新增联动说明**：F ↔ I 的数据契约即为 C++ CLI 的 JSON 输出结构——F 的 Canvas 渲染器按 `steps[].phase` 分发到对应动画帧，无需自行实现算法逻辑。A 的代码题批改可将学生答案与 CLI 输出对比。
 
 ### 3.2 接口对接流程
 
@@ -429,6 +485,7 @@ main                          # 保护分支，仅通过 PR 合入
 ├── feat/H-exercise-ui        # 成员 H 练习UI+仪表盘
 │
 ├── kg/I-规范                 # 成员 I KG 规范文档
+├── feat/I-visualization-api  # 成员 I 可视化数据 API（代码开发）
 └── feat/I-devops             # 成员 I DevOps/数据库
 ```
 
@@ -548,12 +605,12 @@ git shortlog -sn --all --since="2026-05-12"
 
 | 成员 | KG 模块 | KG 节点数 | 功能模块 | 技术栈 |
 |------|---------|----------|---------|--------|
-| **A** | 线性结构 | 7 | 后端：练习系统 | FastAPI, SQLAlchemy |
+| **A** | 线性结构 | 7 | 后端：练习系统 | FastAPI, SQLAlchemy, C++ CLI |
 | **B** | 树形结构 Part1 | 3 | 前端：基础架构 | React, Vite, Ant Design, Zustand |
 | **C** | 树形结构 Part2 | 3 | 后端：用户认证 | FastAPI, JWT, bcrypt |
 | **D** | 图形结构 Part1 | 3 | 后端：知识图谱 API | FastAPI, Neo4j, Cypher |
 | **E** | 图形结构 Part2 | 3 | 前端：知识图谱 UI | React, D3.js, SVG |
-| **F** | 排序算法 | 5 | 前端：可视化引擎 | React, Canvas 2D |
+| **F** | 排序算法 | 5 | 前端：可视化引擎（数据驱动） | React, Canvas 2D |
 | **G** | 查找算法 | 4 | 后端：推荐引擎 & 统计 | FastAPI, 推荐算法 |
 | **H** | 基础概念 + 跨关联 | 2+5 | 前端：练习UI & 仪表盘 | React, Monaco Editor |
-| **I** | KG 规范 + 汇总 | — | DevOps & 数据库 | Docker, PostgreSQL, Neo4j, Nginx |
+| **I** | KG 规范 + 汇总 | — | DevOps & 可视化数据 API + C++ CLI | Docker, PostgreSQL, Neo4j, FastAPI, C++ |
