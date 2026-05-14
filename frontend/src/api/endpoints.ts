@@ -20,6 +20,10 @@ export const authApi = {
     apiClient.post<User>("/auth/register", data),
   login: (data: LoginRequest) =>
     apiClient.post<TokenResponse>("/auth/login", data),
+  refresh: (refreshToken: string) =>
+    apiClient.post<TokenResponse>("/auth/refresh", {
+      refresh_token: refreshToken,
+    }),
   me: () => apiClient.get<User>("/auth/me"),
   // 管理员端点（依赖：成员 C）
   listUsers: () => apiClient.get<User[]>("/auth/users"),
