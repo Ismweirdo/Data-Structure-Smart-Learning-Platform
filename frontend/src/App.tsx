@@ -4,9 +4,11 @@ import AppRouter from "./router";
 
 const theme = {
   token: {
-    colorPrimary: "#4f46e5",
+    colorPrimary: "#1677ff",
     borderRadius: 8,
     colorBgContainer: "#ffffff",
+    fontFamily:
+      '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif',
   },
 };
 

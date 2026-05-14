@@ -5,9 +5,12 @@ import {
   LoginOutlined,
   LogoutOutlined,
   NodeIndexOutlined,
+  PlayCircleOutlined,
+  SettingOutlined,
   UserOutlined,
 } from "@ant-design/icons";
-import { Button, Layout, Menu, Space } from "antd";
+import { Avatar, Button, Dropdown, Layout, Menu, Space, type MenuProps } from "antd";
+import axios from "axios";
 import { useEffect } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { authApi } from "@/api/endpoints";
@@ -15,12 +18,24 @@ import { useAuthStore } from "@/store/authStore";
 
 const { Header, Content, Sider } = Layout;
 
-const menuItems = [
+type MenuItem = NonNullable<MenuProps["items"]>[number];
+
+const baseMenuItems: MenuItem[] = [
   { key: "/", icon: <HomeOutlined />, label: "首页" },
   { key: "/knowledge-graph", icon: <NodeIndexOutlined />, label: "知识图谱" },
+  { key: "/visualization/bst", icon: <PlayCircleOutlined />, label: "可视化演示" },
   { key: "/exercises", icon: <BookOutlined />, label: "练习中心" },
   { key: "/dashboard", icon: <DashboardOutlined />, label: "学习仪表盘" },
 ];
+
+function getSelectedKey(pathname: string) {
+  if (pathname.startsWith("/knowledge")) return "/knowledge-graph";
+  if (pathname.startsWith("/visualization")) return "/visualization/bst";
+  if (pathname.startsWith("/exercises")) return "/exercises";
+  if (pathname.startsWith("/dashboard")) return "/dashboard";
+  if (pathname.startsWith("/admin")) return "/admin";
+  return "/";
+}
 
 export default function MainLayout() {
   const location = useLocation();
@@ -29,37 +44,76 @@ export default function MainLayout() {
 
   useEffect(() => {
     if (isAuthenticated && !user) {
-      authApi.me().then((res) => setUser(res.data)).catch(() => logout());
+      authApi.me()
+        .then((res) => setUser(res.data))
+        .catch((error: unknown) => {
+          if (axios.isAxiosError(error) && error.response?.status === 401) {
+            logout();
+          }
+        });
     }
   }, [isAuthenticated, user, setUser, logout]);
+
+  const adminMenuItem: MenuItem = {
+    key: "/admin",
+    icon: <SettingOutlined />,
+    label: "管理后台",
+  };
+
+  const menuItems: MenuItem[] = user?.role === "admin"
+    ? [...baseMenuItems, adminMenuItem]
+    : baseMenuItems;
+
+  const handleLogout = () => {
+    logout();
+    navigate("/", { replace: true });
+  };
+
+  const userMenu: MenuProps = {
+    onClick: ({ key }) => {
+      if (key === "logout") {
+        handleLogout();
+        return;
+      }
+      navigate(String(key));
+    },
+    items: [
+      { key: "/dashboard", icon: <DashboardOutlined />, label: "学习仪表盘" },
+      ...(user?.role === "admin"
+        ? [{ key: "/admin", icon: <SettingOutlined />, label: "管理后台" }]
+        : []),
+      { type: "divider" },
+      { key: "logout", icon: <LogoutOutlined />, label: "退出登录" },
+    ],
+  };
 
   return (
     <Layout style={{ minHeight: "100vh" }}>
       <Header
+        className="app-header"
         style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          background: "#001529",
-          padding: "0 24px",
+          background: "#102033",
+          padding: "0 20px",
           position: "sticky",
           top: 0,
           zIndex: 100,
         }}
       >
-        <Link to="/" style={{ color: "#fff", fontSize: 18, fontWeight: 700, textDecoration: "none" }}>
-          数据结构智能学习平台
+        <Link to="/" className="brand-link">
+          <span className="brand-mark">DS</span>
+          <span>数据结构智能学习平台</span>
         </Link>
         <Space>
           {isAuthenticated ? (
-            <>
-              <span style={{ color: "rgba(255,255,255,0.7)" }}>
-                <UserOutlined /> {user?.username}
-              </span>
-              <Button type="text" icon={<LogoutOutlined />} onClick={logout} style={{ color: "#fff" }}>
-                退出
+            <Dropdown menu={userMenu} placement="bottomRight" trigger={["click"]}>
+              <Button type="text" className="header-user-button">
+                <Avatar size="small" icon={<UserOutlined />} />
+                <span>{user?.username || "已登录"}</span>
               </Button>
-            </>
+            </Dropdown>
           ) : (
             <Button type="primary" icon={<LoginOutlined />} onClick={() => navigate("/login")}>
               登录
@@ -71,7 +125,7 @@ export default function MainLayout() {
         <Sider width={200} style={{ background: "#fff" }} breakpoint="lg" collapsedWidth="0">
           <Menu
             mode="inline"
-            selectedKeys={[location.pathname]}
+            selectedKeys={[getSelectedKey(location.pathname)]}
             items={menuItems}
             onClick={({ key }) => navigate(key)}
             style={{ height: "100%", borderRight: 0, paddingTop: 16 }}
