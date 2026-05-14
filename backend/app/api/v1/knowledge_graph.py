@@ -52,14 +52,6 @@ async def get_graph(neo4j: Neo4jDep, db: DbDep, user_id: uuid.UUID | None = None
     return graph
 
 
-@router.get("/recommend/{user_id}")
-async def recommend(user_id: uuid.UUID, neo4j: Neo4jDep, db: DbDep):
-    """推荐下一个学习知识点 — 调用 kg_service.recommend_next_nodes"""
-    from app.services.kg_service import recommend_next_nodes
-    nodes = await recommend_next_nodes(neo4j, db, user_id)
-    return {"recommended_nodes": nodes}
-
-
 @router.post("/path", response_model=LearningPathResponse)
 async def learning_path(data: LearningPathRequest, neo4j: Neo4jDep):
     """两知识点间学习路径查询 — 使用 BFS 算法查找最短路径"""

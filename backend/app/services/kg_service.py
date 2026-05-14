@@ -163,8 +163,3 @@ async def find_learning_path(
         total_steps=len(path) - 1,
         estimated_hours=len(path) * 0.5,
     )
-
-
-async def recommend_next_nodes(neo4j: Neo4jSession, db: PGAsyncSession, user_id: uuid.UUID) -> List[str]:
-    """推荐下一个学习节点 — 基于已掌握前置知识的前沿节点"""
-    raise NotImplementedError("recommend_next_nodes 待实现 — G 推荐引擎模块")
