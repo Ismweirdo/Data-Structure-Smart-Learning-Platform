@@ -63,3 +63,72 @@ CATEGORY_NODES = """
     RETURN n
     ORDER BY n.difficulty, n.name
 """
+
+# 创建知识点节点
+CREATE_NODE = """
+    CREATE (n:KnowledgeNode {
+        id: $id,
+        name: $name,
+        description: $description,
+        difficulty: $difficulty,
+        category: $category,
+        order_index: $order_index,
+        created_at: datetime()
+    })
+    RETURN n
+"""
+
+# 更新知识点节点
+UPDATE_NODE = """
+    MATCH (n:KnowledgeNode {id: $id})
+    SET n += $props
+    RETURN n
+"""
+
+# 删除知识点节点（级联删除相关关系）
+DELETE_NODE = """
+    MATCH (n:KnowledgeNode {id: $id})
+    DETACH DELETE n
+"""
+
+# 查找学习路径（使用最短路径算法）
+FIND_LEARNING_PATH = """
+    MATCH path = shortestPath(
+        (source:KnowledgeNode {id: $source_id})-[*..10]->(target:KnowledgeNode {id: $target_id})
+    )
+    RETURN [node in nodes(path) | node.id] AS path
+"""
+
+# 创建关系
+CREATE_RELATION = """
+    MATCH (a:KnowledgeNode {id: $source_id}), (b:KnowledgeNode {id: $target_id})
+    MERGE (a)-[:%s]->(b)
+    RETURN a, b
+"""
+
+# 查询某个知识点的直接前置依赖
+DIRECT_PREREQUISITES = """
+    MATCH (pre:KnowledgeNode)-[:PREREQUISITE_OF]->(target:KnowledgeNode {id: $target_id})
+    RETURN pre
+"""
+
+# 查询某个知识点的直接后继知识
+DIRECT_SUCCESSORS = """
+    MATCH (source:KnowledgeNode {id: $source_id})-[:PREREQUISITE_OF]->(next:KnowledgeNode)
+    RETURN next
+"""
+
+# 统计各分类知识点数量
+CATEGORY_STATS = """
+    MATCH (n:KnowledgeNode)
+    RETURN n.category as category, count(n) as count
+    ORDER BY count DESC
+"""
+
+# 按难度查询知识点
+DIFFICULTY_NODES = """
+    MATCH (n:KnowledgeNode)
+    WHERE n.difficulty = $difficulty
+    RETURN n
+    ORDER BY n.category, n.name
+"""
